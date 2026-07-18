@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>保健室おかたづけミッション</title>
+<style>
+body {
+  margin:0; font-family:system-ui,sans-serif; background:#ffeef3;
+  display:flex; justify-content:center; align-items:center; height:100vh;
+  user-select:none; 
+}
+.game { width:100%; max-width:420px; position:relative; }
+.screen { display:none; text-align:center; position:relative; width:100%; height:100%; }
+.start, .clear {
+  display:flex; flex-direction:column; justify-content:center; align-items:center;
+  width:100%; height:100%;
+}
+button {
+  padding:10px 20px; font-size:1.2rem; border-radius:999px; border:none;
+  background:#ff77aa; color:#fff; box-shadow:0 4px 6px rgba(255,119,170,0.4); cursor:pointer; transition:0.2s;
+}
+button:hover{ transform:scale(1.05); }
+.room{
+  position:relative; width:100%; aspect-ratio:1/1;
+  background:url("./room_bg.jpg") center/cover no-repeat;
+  border-radius:16px; overflow:hidden; box-shadow:0 4px 12px rgba(255,119,170,0.4); margin:0 auto;
+}
+.paper{
+  position:absolute; width:40px; height:40px; border-radius:8px; border:2px solid #ffa1c1;
+  display:flex; align-items:center; justify-content:center; font-size:24px;
+  background:#fff0f6; opacity:0; cursor:pointer; transition:0.2s;
+}
+.paper.visible{ opacity:1; }
+.bubble{
+  position:absolute; background:#fff0f6; border:2px solid #ff77aa; border-radius:12px;
+  padding:6px 10px; font-size:14px; color:#d1477a; white-space:nowrap;
+  transform:translate(-50%, -120%);
+  pointer-events:none;
+}
+.status{ text-align:center; font-size:0.9rem; margin-bottom:6px; color:#d1477a; }
+.clear img{
+  max-width:80%; border-radius:16px; margin-top:10px; box-shadow:0 4px 10px rgba(255,119,170,0.5);
+}
+.player{
+    position:absolute;
+    left:200px;
+    top:200px;
+    width:64px;
+    height:64px;
+    background-image:url("avater.png");
+    background-repeat:no-repeat;
+    background-size:64px 64px;
+    background-position:0 0;
+
+    image-rendering:pixelated;
+    pointer-events:none;
+    z-index:9999;
+}
+#downloadBtn{
+    display:none;
+}
+
+</style>
+</head>
+<body>
+
+<div class="game">
+
+<div class="screen start" id="startScreen">
+  <div style="text-align:center;">
+    <h1 style="color:#d1477a; font-size:1.5rem;">🌈陣がまた書類を溜め込んでいるようです</h1>
+    <p style="color:#d1477a; font-size:1rem;">画面をタップ/クリックして書類を集めよう！</p>
+    <button onclick="startGame()">スタート</button>
+  </div>
+</div>
+
+<div class="screen" id="gameScreen">
+  <div class="status">📄 <span id="count">0</span> / <span id="total">0</span>　⏱ <span id="time">0.0</span>s</div>
+<div class="room" id="room">
+    <img id="player"
+         src="avater.png"
+         style="
+            position:absolute;
+            left:200px;
+            top:200px;
+            width:64px;
+            height:64px;
+            z-index:9999;
+            pointer-events:none;">
+            </div>
+
+</div>
+
+<div class="screen clear" id="clearScreen">
+  <h2 style="color:#d1477a;">🌈 クリア！</h2>
+  <p>クリアタイム：<strong><span id="finalTime"></span> 秒</strong></p>
+
+  <img id="reward" style="max-width:80%;">
+
+  <br><br>
+
+  <a id="downloadBtn" download>
+      <button>🎁 ご褒美をダウンロード</button>
+  </a>
+
+  <br><br>
+
+  <button onclick="backToStart()">最初に戻る</button>
+</div>
+
+<audio id="hitSound" src="hit.mp3"></audio>
+<audio id="clearSound" src="clear.mp3"></audio>
+
+<script>
+const startScreen=document.getElementById("startScreen");
+const gameScreen=document.getElementById("gameScreen");
+const clearScreen=document.getElementById("clearScreen");
+const room=document.getElementById("room");
+let player=document.getElementById("player");
+const countEl=document.getElementById("count");
+const totalEl=document.getElementById("total");
+const timeEl=document.getElementById("time");
+const finalTimeEl=document.getElementById("finalTime");
+
+let papers=[], collected=0, totalHits=0, startTime, timer;
+let collecting=false;
+
+
+window.onload = () => {
+  startScreen.style.display = "flex";
+  gameScreen.style.display = "none";
+  clearScreen.style.display = "none";
+  player.style.left="180px";
+  player.style.top="180px";
+};
+
+function startGame(){
+  startScreen.style.display="none";
+  clearScreen.style.display="none";
+  gameScreen.style.display="block";
+
+collected=0;
+totalHits=0;
+countEl.textContent=0;
+
+papers=[];
+
+room.querySelectorAll(".paper").forEach(e=>e.remove());
+room.querySelectorAll(".hitArea").forEach(e=>e.remove());
+
+player.style.left="200px";
+player.style.top="200px";
+
+player.style.left="200px";
+player.style.top="200px";
+
+
+  let paperList=[
+    {icon:"📄", text:"❢これは重要書類です❢", isHit:true},
+    {icon:"📄", text:"❢職員会議の資料です❢", isHit:true},
+    {icon:"📄", text:"❢健康診断の項目表です❢", isHit:true},
+    {icon:"📄", text:"❢まだ提出していないんですか!?❢", isHit:true},
+    {icon:"📄", text:"❢今すぐ書かせましょう❢", isHit:true},
+    {icon:"📄", text:"まだ使わない書類…", isHit:false},
+    {icon:"📄", text:"アイドル時代のブロマイド…", isHit:false}
+  ];
+
+  paperList.sort(()=>Math.random()-0.5);
+
+  paperList.forEach(paper=>{
+    const div=document.createElement("div");
+    div.className="paper";
+    div.dataset.text=paper.text;
+    div.dataset.isHit=paper.isHit;
+    div.textContent=paper.icon;
+
+ 
+    div.style.left = 10 + Math.random()*70 + "%";
+    div.style.top  = 10 + Math.random()*70 + "%";
+    room.appendChild(div);
+    papers.push(div);
+    if(paper.isHit) totalHits++;
+
+   
+    const hitArea = document.createElement("div");
+    hitArea.className="hitArea";
+    hitArea.style.position="absolute";
+    hitArea.style.left = div.style.left;
+    hitArea.style.top = div.style.top;
+    hitArea.style.width="70px";
+    hitArea.style.height="70px";
+    hitArea.style.cursor="pointer";
+    hitArea.style.background="transparent";
+    room.appendChild(hitArea);hitArea.addEventListener("click", ()=>collectPaper(div));
+  });
+
+  totalEl.textContent = 4; 
+  startTime=Date.now();
+  timer=setInterval(()=>{timeEl.textContent=((Date.now()-startTime)/1000).toFixed(1);},100);
+}
+
+function collectPaper(p){
+  if(p.classList.contains("visible") || collecting) return;
+  collecting=true;
+
+  p.classList.add("visible");
+  if(p.dataset.isHit==="true"){
+    collected++;
+    countEl.textContent=collected;
+  }
+
+  const roomRect = room.getBoundingClientRect();
+  const gameRect = gameScreen.getBoundingClientRect();
+  const bubble=document.createElement("div");
+  bubble.className="bubble";
+  bubble.textContent=p.dataset.text;
+  bubble.style.left = (roomRect.left - gameRect.left + p.offsetLeft + p.offsetWidth/2) + "px";
+  bubble.style.top  = (roomRect.top  - gameRect.top + p.offsetTop) + "px";
+  gameScreen.appendChild(bubble);
+  setTimeout(()=>bubble.remove(),1500);
+
+  document.getElementById("hitSound").play();
+
+  if(collected >= 4){ 
+    setTimeout(clearGame,2000); 
+  }
+
+  setTimeout(()=>collecting=false,50);
+}
+
+function clearGame(){
+
+  clearInterval(timer);
+
+  finalTimeEl.textContent=((Date.now()-startTime)/1000).toFixed(1);
+
+  document.getElementById("clearSound").play();
+
+  const rewards=[
+    "reward1.png",
+    "reward2.png"
+  ];
+
+  const randomReward=rewards[Math.floor(Math.random()*rewards.length)];
+
+  document.getElementById("reward").src=randomReward;
+
+  const downloadBtn=document.getElementById("downloadBtn");
+  downloadBtn.href=randomReward;
+  downloadBtn.download=randomReward;
+  downloadBtn.style.display="inline-block";
+  gameScreen.style.display="none";
+  clearScreen.style.display="flex";
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function backToStart(){
+  document.getElementById("downloadBtn").style.display="none";
+  clearScreen.style.display="none";
+  startScreen.style.display="flex";
+}
+
+room.addEventListener("click", (e) => {
+
+    const rect = room.getBoundingClientRect();
+
+    player.style.left = (e.clientX - rect.left - 32) + "px";
+    player.style.top  = (e.clientY - rect.top - 32) + "px";
+
+});
+
+</script>
+</body>
+</html>
